@@ -330,7 +330,6 @@ function wilcosky_bsky_schedule_auto_post($post_id) {
 }
 add_action('publish_post', 'wilcosky_bsky_schedule_auto_post');
 add_action('publish_page', 'wilcosky_bsky_schedule_auto_post');
-add_action('publish_resource', 'wilcosky_bsky_schedule_auto_post');
 
 /**
  * Auto-post to Bluesky.
