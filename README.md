@@ -40,7 +40,6 @@ Allows each WordPress author to connect their Bluesky account using their handle
 
 - **publish_post**: Schedules an auto-post to Bluesky when a post is published.
 - **publish_page**: Schedules an auto-post to Bluesky when a page is published.
-- **publish_resource**: Schedules an auto-post to Bluesky when a custom post type is published.
 
 ## Cleanup
 
