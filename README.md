@@ -52,7 +52,7 @@ On plugin deletion, the following user meta data is removed:
 
 ## License
 
-This plugin is licensed under the GPL2. See the `LICENSE` file for more details.
+This plugin is licensed under the GPL3. See the `LICENSE` file for more details.
 
 ## Author
 
