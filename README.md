@@ -1,5 +1,5 @@
 # Bluesky Auto-Poster (for WordPress)
-### v0.1
+### v0.3
 
 Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
 
