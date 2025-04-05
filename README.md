@@ -14,7 +14,7 @@ Each author can connect their Bluesky account by using the provided shortcode `[
 
 ### 2. Scheduling Auto-Post
 
-When a post, page, or custom post type is published, the plugin schedules an auto-post to Bluesky with a delay of 1 minute using the `wilcosky_bsky_schedule_auto_post` function. 
+When a post is published, the plugin schedules an auto-post to Bluesky with a delay of 1 minute using the `wilcosky_bsky_schedule_auto_post` function. 
 
 ### 3. Auto-Posting to Bluesky
 
