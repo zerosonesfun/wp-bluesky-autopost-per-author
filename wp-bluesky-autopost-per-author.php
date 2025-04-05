@@ -137,65 +137,65 @@ function wilcosky_bsky_login_shortcode() {
 
     <div id="wilcosky-bsky-response"></div>
 
-    <script>
-    (function(){
-        const loginForm = document.getElementById('wilcosky-bsky-login-form');
-        const disconnectForm = document.getElementById('wilcosky-bsky-disconnect-form');
-        const responseDiv = document.getElementById('wilcosky-bsky-response');
-        
-        if (loginForm) {
-            loginForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                var formData = new URLSearchParams(new FormData(this));
-                fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
-                    method: 'POST',
-                    body: formData,
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    responseDiv.textContent = data.message;
-                    if (data.message.includes('successfully')) {
-                        loginForm.style.display = 'none';
-                        if (disconnectForm) {
-                            disconnectForm.style.display = 'block';
-                        }
+<script>
+(function(){
+    const loginForm = document.getElementById('wilcosky-bsky-login-form');
+    const disconnectForm = document.getElementById('wilcosky-bsky-disconnect-form');
+    const responseDiv = document.getElementById('wilcosky-bsky-response');
+    
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var formData = new URLSearchParams(new FormData(this));
+            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
+                method: 'POST',
+                body: formData,
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseDiv.textContent = data.message;
+                if (data.message && data.message.includes('successfully')) {
+                    loginForm.style.display = 'none';
+                    if (disconnectForm) {
+                        disconnectForm.style.display = 'block';
                     }
-                })
-                .catch(error => {
-                    responseDiv.textContent = 'Error: ' + error;
-                });
+                }
+            })
+            .catch(error => {
+                responseDiv.textContent = 'Error: ' + error;
             });
-        }
+        });
+    }
 
-        if (disconnectForm) {
-            disconnectForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                var formData = new URLSearchParams(new FormData(this));
-                fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
-                    method: 'POST',
-                    body: formData,
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    responseDiv.textContent = data.message;
-                    if (data.message.includes('successfully')) {
-                        disconnectForm.style.display = 'none';
-                        if (loginForm) {
-                            loginForm.style.display = 'block';
-                        }
+    if (disconnectForm) {
+        disconnectForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var formData = new URLSearchParams(new FormData(this));
+            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
+                method: 'POST',
+                body: formData,
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseDiv.textContent = data.message;
+                if (data.message && data.message.includes('successfully')) {
+                    disconnectForm.style.display = 'none';
+                    if (loginForm) {
+                        loginForm.style.display = 'block';
                     }
-                })
-                .catch(error => {
-                    responseDiv.textContent = 'Error: ' + error;
-                });
+                }
+            })
+            .catch(error => {
+                responseDiv.textContent = 'Error: ' + error;
             });
-        }
-    })();
-    </script>
+        });
+    }
+})();
+</script>
     <?php
     return ob_get_clean();
 }
