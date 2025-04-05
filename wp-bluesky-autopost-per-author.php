@@ -249,6 +249,9 @@ function wilcosky_bsky_login() {
     wp_send_json(['message' => esc_html__('Bluesky connected successfully!', 'wilcosky-bsky')]);
 }
 
+/**
+ * Refresh access token with refresh token as needed or re-authenticate.
+ */
 function wilcosky_bsky_refresh_token($user_id) {
     $refresh_token = get_user_meta($user_id, 'wilcosky_bsky_refresh_token', true);
     if (empty($refresh_token)) {
