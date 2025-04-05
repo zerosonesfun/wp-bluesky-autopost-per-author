@@ -304,45 +304,6 @@ function wilcosky_bsky_disconnect() {
 add_action('wp_ajax_wilcosky_bsky_disconnect', 'wilcosky_bsky_disconnect');
 
 /**
- * Refresh Bluesky session token.
- *
- * @param int $user_id
- * @return string|false New token or false on failure.
- */
-function wilcosky_bsky_refresh_token($user_id) {
-    $handle = get_user_meta($user_id, 'wilcosky_bsky_handle', true);
-    $encrypted_password = get_user_meta($user_id, 'wilcosky_bsky_password', true); // Retrieve stored encrypted password
-    $password = wilcosky_bsky_decrypt($encrypted_password); // Decrypt the password
-    if (empty($handle) || empty($password)) {
-        return false;
-    }
-
-    $payload = [
-        'identifier' => $handle,
-        'password'   => $password,
-    ];
-
-    $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.createSession', [
-        'body'    => wp_json_encode($payload),
-        'headers' => ['Content-Type' => 'application/json'],
-        'timeout' => 15,
-    ]);
-
-    if (is_wp_error($response)) {
-        return false;
-    }
-
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-    if (empty($body['accessJwt'])) {
-        return false;
-    }
-
-    update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
-    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time
-    return $body['accessJwt'];
-}
-
-/**
  * Schedule auto-post to Bluesky when a post, page, or custom post type is published.
  *
  * @param int $post_id
