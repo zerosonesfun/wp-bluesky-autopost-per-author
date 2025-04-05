@@ -382,7 +382,7 @@ function wilcosky_bsky_auto_post($post_id) {
 
     // Initial check for Open Graph data
     if (!check_og_data($link, $title, $og_title, $og_description, $og_image)) {
-        wp_schedule_single_event(time() + 120, 'wilcosky_bsky_auto_post_event', [$post_id]);
+        wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
         return;
     }
 
@@ -451,7 +451,7 @@ function wilcosky_bsky_auto_post($post_id) {
         if ($token) {
             // Re-check the Open Graph data
             if (!check_og_data($link, $title, $og_title, $og_description, $og_image)) {
-                wp_schedule_single_event(time() + 120, 'wilcosky_bsky_auto_post_event', [$post_id]);
+                wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
                 return;
             }
 
