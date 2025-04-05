@@ -248,6 +248,7 @@ function wilcosky_bsky_login() {
 
     wp_send_json(['message' => esc_html__('Bluesky connected successfully!', 'wilcosky-bsky')]);
 }
+add_action('wp_ajax_wilcosky_bsky_login', 'wilcosky_bsky_login');
 
 /**
  * Refresh access token with refresh token as needed or re-authenticate.
