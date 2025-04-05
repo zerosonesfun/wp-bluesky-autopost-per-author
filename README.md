@@ -1,6 +1,6 @@
 # Wilcosky Bluesky Auto-Poster
 
-Let each author at your WordPress website connect to their Bluesky account. When they publish a post, it is sent to their Bluesky account.
+Let each author at your WordPress website connect to their Bluesky account. When they publish a post, it is sent to their Bluesky account. (There is a 1 minute delay.)
 
 ## Plugin Overview
 
