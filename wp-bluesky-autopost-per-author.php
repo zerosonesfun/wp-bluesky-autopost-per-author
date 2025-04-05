@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.3
+ * Version:     0.4
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
@@ -234,20 +234,51 @@ function wilcosky_bsky_login() {
     }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
-    if (empty($body['accessJwt'])) {
+    if (empty($body['accessJwt']) || empty($body['refreshJwt'])) {
         error_log('Wilcosky BSky: Authentication failed for handle ' . $handle . ' - Response: ' . wp_remote_retrieve_body($response));
         wp_send_json(['message' => esc_html__('Bluesky authentication failed. Please check your handle and password.', 'wilcosky-bsky')], 401);
     }
 
-    // Store the session token and handle securely.
+    // Store the session tokens and handle securely.
     update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
+    update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
     update_user_meta($user_id, 'wilcosky_bsky_handle', $handle);
     update_user_meta($user_id, 'wilcosky_bsky_password', wilcosky_bsky_encrypt($password)); // Store encrypted password
     update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Store current time
 
     wp_send_json(['message' => esc_html__('Bluesky connected successfully!', 'wilcosky-bsky')]);
 }
-add_action('wp_ajax_wilcosky_bsky_login', 'wilcosky_bsky_login');
+
+function wilcosky_bsky_refresh_token($user_id) {
+    $refresh_token = get_user_meta($user_id, 'wilcosky_bsky_refresh_token', true);
+    if (empty($refresh_token)) {
+        return false;
+    }
+
+    $payload = [
+        'refreshJwt' => $refresh_token,
+    ];
+
+    $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.refreshSession', [
+        'body'    => wp_json_encode($payload),
+        'headers' => ['Content-Type' => 'application/json'],
+        'timeout' => 15,
+    ]);
+
+    if (is_wp_error($response)) {
+        return false;
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (empty($body['accessJwt']) || empty($body['refreshJwt'])) {
+        return false;
+    }
+
+    update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
+    update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
+    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time
+    return $body['accessJwt'];
+}
 
 /**
  * AJAX handler for Bluesky disconnect.
@@ -502,6 +533,31 @@ function wilcosky_bsky_auto_post($post_id) {
 
             // Attempt to post to Bluesky again with refreshed token
             $post_response = post_to_bluesky($post_data, $token);
+        } else {
+            // If refreshing the token fails, re-authenticate using stored credentials
+            $encrypted_password = get_user_meta($user_id, 'wilcosky_bsky_password', true);
+            $password = wilcosky_bsky_decrypt($encrypted_password);
+            if (!empty($handle) && !empty($password)) {
+                $payload = [
+                    'identifier' => $handle,
+                    'password'   => $password,
+                ];
+
+                $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.createSession', [
+                    'body'    => wp_json_encode($payload),
+                    'headers' => ['Content-Type' => 'application/json'],
+                    'timeout' => 15,
+                ]);
+
+                if (!is_wp_error($response)) {
+                    $body = json_decode(wp_remote_retrieve_body($response), true);
+                    if (!empty($body['accessJwt']) && !empty($body['refreshJwt'])) {
+                        update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
+                        update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
+                        $token = $body['accessJwt'];
+                    }
+                }
+            }
         }
     }
 
