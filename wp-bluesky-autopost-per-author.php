@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.4
+ * Version:     0.5
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
@@ -530,3 +530,25 @@ function wilcosky_bsky_auto_post($post_id) {
     }
 }
 add_action('wilcosky_bsky_auto_post_event', 'wilcosky_bsky_auto_post');
+
+// Uninstall function to clean up plugin data.
+function wilcosky_bsky_uninstall() {
+    // Remove user metadata
+    $users = get_users();
+    foreach ($users as $user) {
+        delete_user_meta($user->ID, 'wilcosky_bsky_token');
+        delete_user_meta($user->ID, 'wilcosky_bsky_refresh_token');
+        delete_user_meta($user->ID, 'wilcosky_bsky_handle');
+        delete_user_meta($user->ID, 'wilcosky_bsky_password');
+        delete_user_meta($user->ID, 'wilcosky_bsky_last_communication');
+    }
+
+    // Remove post metadata
+    $posts = get_posts(array('numberposts' => -1, 'post_type' => 'any', 'post_status' => 'any'));
+    foreach ($posts as $post) {
+        delete_post_meta($post->ID, '_wilcosky_bsky_posted');
+    }
+}
+
+// Hook the uninstall function
+register_uninstall_hook(__FILE__, 'wilcosky_bsky_uninstall');
