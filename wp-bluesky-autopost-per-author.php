@@ -6,7 +6,7 @@
  * Version:     0.1
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
- * License:     GPL3
+ * License:     GPL2
  * Text Domain: wilcosky-bsky
  */
 
@@ -330,6 +330,7 @@ function wilcosky_bsky_schedule_auto_post($post_id) {
 }
 add_action('publish_post', 'wilcosky_bsky_schedule_auto_post');
 add_action('publish_page', 'wilcosky_bsky_schedule_auto_post');
+add_action('publish_resource', 'wilcosky_bsky_schedule_auto_post');
 
 /**
  * Auto-post to Bluesky.
@@ -435,6 +436,7 @@ function wilcosky_bsky_auto_post($post_id) {
         // Try refreshing the token and retry the request
         $token = wilcosky_bsky_refresh_token($user_id);
         if ($token) {
+            $post_data['record']['postOn'] = gmdate('Y-m-d\TH:i:s\Z', strtotime('+1 minute')); // delay re-posting
             $post_response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.repo.createRecord', [
                 'body'    => wp_json_encode($post_data),
                 'headers' => [
