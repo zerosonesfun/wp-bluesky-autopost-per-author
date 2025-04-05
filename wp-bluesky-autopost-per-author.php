@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.1
+ * Version:     0.2
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL2
@@ -363,24 +363,33 @@ function wilcosky_bsky_auto_post($post_id) {
     $link  = get_permalink($post_id);
     $title = html_entity_decode(get_the_title($post_id));
 
-    // Fetch Open Graph data
-    $response = wp_remote_get($link);
-    if (is_wp_error($response)) {
+    // Function to check Open Graph data
+    function check_og_data($link, $title, &$og_title, &$og_description, &$og_image) {
+        $response = wp_remote_get($link);
+        if (is_wp_error($response)) {
+            return false;
+        }
+
+        $html = wp_remote_retrieve_body($response);
+        preg_match('/<meta property="og:title" content="([^\"]+)"/', $html, $og_title);
+        preg_match('/<meta property="og:description" content="([^\"]+)"/', $html, $og_description);
+        preg_match('/<meta property="og:image" content="([^\"]+)"/', $html, $og_image);
+
+        $og_title = $og_title[1] ?? $title;
+        $og_description = $og_description[1] ?? '';
+        $og_image = $og_image[1] ?? '';
+
+        return (!empty($og_title) && !empty($og_description) && !empty($og_image) && !empty($link));
+    }
+
+    // Initial check for Open Graph data
+    if (!check_og_data($link, $title, $og_title, $og_description, $og_image)) {
+        wp_schedule_single_event(time() + 120, 'wilcosky_bsky_auto_post_event', [$post_id]);
         return;
     }
 
-    $html = wp_remote_retrieve_body($response);
-    preg_match('/<meta property="og:title" content="([^"]+)"/', $html, $og_title);
-    preg_match('/<meta property="og:description" content="([^"]+)"/', $html, $og_description);
-    preg_match('/<meta property="og:image" content="([^"]+)"/', $html, $og_image);
-
-    $og_title = $og_title[1] ?? $title;
-    $og_description = $og_description[1] ?? '';
-    $og_image = $og_image[1] ?? '';
-
-    $embed = null;
-
     // Upload image to Bluesky if an OG image is found
+    $embed = null;
     if (!empty($og_image)) {
         $image_data = wp_remote_get($og_image);
         if (!is_wp_error($image_data)) {
@@ -416,7 +425,7 @@ function wilcosky_bsky_auto_post($post_id) {
         'collection' => 'app.bsky.feed.post',
         'record'     => [
             'text'      => $title,
-            'createdAt' => gmdate('Y-m-d\TH:i:s\Z'),
+            'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z'),
         ],
     ];
 
@@ -424,26 +433,26 @@ function wilcosky_bsky_auto_post($post_id) {
         $post_data['record']['embed'] = $embed;
     }
 
-    $post_response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.repo.createRecord', [
-        'body'    => wp_json_encode($post_data),
-        'headers' => [
-            'Content-Type'  => 'application/json',
-            'Authorization' => 'Bearer ' . $token,
-        ],
-    ]);
+    // Function to post data to Bluesky
+    function post_to_bluesky($post_data, $token) {
+        return wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.repo.createRecord', [
+            'body'    => wp_json_encode($post_data),
+            'headers' => [
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $token,
+            ],
+        ]);
+    }
+
+    // Attempt to post to Bluesky
+    $post_response = post_to_bluesky($post_data, $token);
 
     if (is_wp_error($post_response) || wp_remote_retrieve_response_code($post_response) != 200) {
         // Try refreshing the token and retry the request
         $token = wilcosky_bsky_refresh_token($user_id);
         if ($token) {
-            $post_data['record']['postOn'] = gmdate('Y-m-d\TH:i:s\Z', strtotime('+1 minute')); // delay re-posting
-            $post_response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.repo.createRecord', [
-                'body'    => wp_json_encode($post_data),
-                'headers' => [
-                    'Content-Type'  => 'application/json',
-                    'Authorization' => 'Bearer ' . $token,
-                ],
-            ]);
+            // Attempt to post to Bluesky again with refreshed token
+            $post_response = post_to_bluesky($post_data, $token);
         }
     }
 
