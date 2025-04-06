@@ -3,18 +3,19 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.6
+ * Version:     0.8
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
  * Text Domain: wilcosky-bsky
  */
 
+// Block direct access to this file
 if (!defined('ABSPATH')) {
-    exit; // Exit if accessed directly.
+    exit;
 }
 
-// Ensure the encryption key is defined in wp-config.php
+// Ensure the encryption key is defined in wp-config.php like this (replace randomkeyhere with a long random key): define('WILCOSKY_BSKY_ENCRYPTION_KEY', 'randomkeyhere'); 
 if (!defined('WILCOSKY_BSKY_ENCRYPTION_KEY')) {
     error_log('Wilcosky BSky: Encryption key not defined. Please define WILCOSKY_BSKY_ENCRYPTION_KEY in wp-config.php');
     return;
@@ -56,10 +57,11 @@ function wilcosky_bsky_login_shortcode() {
         return '<p>' . esc_html__('You must be logged in to connect your Bluesky account.', 'wilcosky-bsky') . '</p>';
     }
 
-    $user_id    = get_current_user_id();
+    $user_id = get_current_user_id();
     $bsky_handle = get_user_meta($user_id, 'wilcosky_bsky_handle', true);
     $last_communication = get_user_meta($user_id, 'wilcosky_bsky_last_communication', true);
-    $nonce      = wp_create_nonce('wilcosky_bsky_nonce');
+    $log = get_user_meta($user_id, 'wilcosky_bsky_log', true);
+    $nonce = wp_create_nonce('wilcosky_bsky_nonce');
 
     ob_start();
     ?>
@@ -136,66 +138,68 @@ function wilcosky_bsky_login_shortcode() {
     </form>
 
     <div id="wilcosky-bsky-response"></div>
+    <label for="wilcosky-bsky-log"><?php esc_html_e('Plugin Log:', 'wilcosky-bsky'); ?></label>
+    <textarea id="wilcosky-bsky-log" readonly style="width: 100%; height: 200px;"><?php echo esc_textarea($log); ?></textarea>
 
-<script>
-(function(){
-    const loginForm = document.getElementById('wilcosky-bsky-login-form');
-    const disconnectForm = document.getElementById('wilcosky-bsky-disconnect-form');
-    const responseDiv = document.getElementById('wilcosky-bsky-response');
-    
-    if (loginForm) {
-        loginForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            var formData = new URLSearchParams(new FormData(this));
-            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
-                method: 'POST',
-                body: formData,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                responseDiv.textContent = data.message;
-                if (data.message && data.message.includes('successfully')) {
-                    loginForm.style.display = 'none';
-                    if (disconnectForm) {
-                        disconnectForm.style.display = 'block';
+    <script>
+    (function(){
+        const loginForm = document.getElementById('wilcosky-bsky-login-form');
+        const disconnectForm = document.getElementById('wilcosky-bsky-disconnect-form');
+        const responseDiv = document.getElementById('wilcosky-bsky-response');
+        
+        if (loginForm) {
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                var formData = new URLSearchParams(new FormData(this));
+                fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    responseDiv.textContent = data.message;
+                    if (data.message && data.message.includes('successfully')) {
+                        loginForm.style.display = 'none';
+                        if (disconnectForm) {
+                            disconnectForm.style.display = 'block';
+                        }
                     }
-                }
-            })
-            .catch(error => {
-                responseDiv.textContent = 'Error: ' + error;
+                })
+                .catch(error => {
+                    responseDiv.textContent = 'Error: ' + error;
+                });
             });
-        });
-    }
+        }
 
-    if (disconnectForm) {
-        disconnectForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            var formData = new URLSearchParams(new FormData(this));
-            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
-                method: 'POST',
-                body: formData,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                responseDiv.textContent = data.message;
-                if (data.message && data.message.includes('successfully')) {
-                    disconnectForm.style.display = 'none';
-                    if (loginForm) {
-                        loginForm.style.display = 'block';
+        if (disconnectForm) {
+            disconnectForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                var formData = new URLSearchParams(new FormData(this));
+                fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    responseDiv.textContent = data.message;
+                    if (data.message && data.message.includes('successfully')) {
+                        disconnectForm.style.display = 'none';
+                        if (loginForm) {
+                            loginForm.style.display = 'block';
+                        }
                     }
-                }
-            })
-            .catch(error => {
-                responseDiv.textContent = 'Error: ' + error;
+                })
+                .catch(error => {
+                    responseDiv.textContent = 'Error: ' + error;
+                });
             });
-        });
-    }
-})();
-</script>
+        }
+    })();
+    </script>
     <?php
     return ob_get_clean();
 }
@@ -251,40 +255,6 @@ function wilcosky_bsky_login() {
 add_action('wp_ajax_wilcosky_bsky_login', 'wilcosky_bsky_login');
 
 /**
- * Refresh access token with refresh token as needed or re-authenticate.
- */
-function wilcosky_bsky_refresh_token($user_id) {
-    $refresh_token = get_user_meta($user_id, 'wilcosky_bsky_refresh_token', true);
-    if (empty($refresh_token)) {
-        return false;
-    }
-
-    $payload = [
-        'refreshJwt' => $refresh_token,
-    ];
-
-    $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.refreshSession', [
-        'body'    => wp_json_encode($payload),
-        'headers' => ['Content-Type' => 'application/json'],
-        'timeout' => 15,
-    ]);
-
-    if (is_wp_error($response)) {
-        return false;
-    }
-
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-    if (empty($body['accessJwt']) || empty($body['refreshJwt'])) {
-        return false;
-    }
-
-    update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
-    update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
-    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time
-    return $body['accessJwt'];
-}
-
-/**
  * AJAX handler for Bluesky disconnect.
  */
 function wilcosky_bsky_disconnect() {
@@ -325,18 +295,105 @@ function wilcosky_bsky_schedule_auto_post($post_id) {
     wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
 }
 add_action('publish_post', 'wilcosky_bsky_schedule_auto_post');
+add_action('publish_resource', 'wilcosky_bsky_schedule_auto_post');
 
 /**
- * Auto-post to Bluesky.
+ * Create and update a frontend error log which shows up where the shortcode is placed.
+ */
+function wilcosky_bsky_update_log($user_id, $message, $post_title = '') {
+    // Retrieve the existing log; if none exists, start with an empty array.
+    $log = get_user_meta($user_id, 'wilcosky_bsky_log', true);
+    $lines = $log ? explode("\n", trim($log)) : [];
+    
+    // If a post title is provided, append its first 30 characters to the log message.
+    if (!empty($post_title)) {
+        $truncated_title = substr($post_title, 0, 30);
+        $message .= " | Post: " . $truncated_title;
+    }
+    
+    // Create the new log entry with a timestamp.
+    $new_line = "[" . current_time('mysql') . "] " . $message;
+    $lines[] = $new_line;
+    
+    // Keep only the last 25 entries.
+    $lines = array_slice($lines, -25);
+    
+    // Save the updated log back as a string with a newline between entries.
+    $log = implode("\n", $lines) . "\n";
+    update_user_meta($user_id, 'wilcosky_bsky_log', $log);
+}
+
+/**
+ * Refresh access token with refresh token as needed or re-authenticate.
+ */
+function wilcosky_bsky_refresh_token($user_id) {
+    $refresh_token = get_user_meta($user_id, 'wilcosky_bsky_refresh_token', true);
+    if (empty($refresh_token)) {
+        wilcosky_bsky_update_log($user_id, 'No refresh token found.');
+        return false;
+    }
+
+    $payload = [
+        'refreshJwt' => $refresh_token,
+    ];
+
+    $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.refreshSession', [
+        'body'    => wp_json_encode($payload),
+        'headers' => ['Content-Type' => 'application/json'],
+        'timeout' => 15,
+    ]);
+
+    if (is_wp_error($response)) {
+        wilcosky_bsky_update_log($user_id, 'Refresh token request error: ' . $response->get_error_message());
+        return false;
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (empty($body['accessJwt']) || empty($body['refreshJwt'])) {
+        wilcosky_bsky_update_log($user_id, 'Invalid refresh token response: ' . wp_remote_retrieve_body($response));
+        return false;
+    }
+
+    update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
+    update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
+    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time
+    wilcosky_bsky_update_log($user_id, 'Token refreshed successfully.');
+    return $body['accessJwt'];
+}
+
+/**
+ * Helper function to schedule a retry with a maximum of 3 attempts.
  *
- * @param int $post_id
+ * @param int    $post_id The ID of the post.
+ * @param int    $user_id The ID of the post author.
+ * @param string $title   The post title.
+ */
+function schedule_retry($post_id, $user_id, $title) {
+    $retry_count = (int) get_post_meta($post_id, '_wilcosky_bsky_retry_count', true);
+    if ($retry_count < 3) {
+        $retry_count++;
+        update_post_meta($post_id, '_wilcosky_bsky_retry_count', $retry_count);
+        wilcosky_bsky_update_log($user_id, 'Scheduling retry attempt ' . $retry_count . ' of 3.', $title);
+        wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
+    } else {
+        wilcosky_bsky_update_log($user_id, 'Maximum retry attempts reached. No further retries will be scheduled.', $title);
+    }
+}
+
+/**
+ * Auto-posts a WordPress post to Bluesky.
+ *
+ * This function attempts to post a given post to Bluesky. It logs each step,
+ * tries to refresh tokens or re-authenticate as needed, and schedules retries
+ * (up to 3 attempts) in case of any failure.
+ *
+ * @param int $post_id The ID of the post to auto-post.
  */
 function wilcosky_bsky_auto_post($post_id) {
-    // Check again if the post is published and not already posted
+    // Check if the post is published, not a revision, and not already posted.
     if (wp_is_post_revision($post_id) || get_post_status($post_id) !== 'publish') {
         return;
     }
-
     if (get_post_meta($post_id, '_wilcosky_bsky_posted', true)) {
         return;
     }
@@ -345,44 +402,46 @@ function wilcosky_bsky_auto_post($post_id) {
     if (!$post) {
         return;
     }
-
+    
     $user_id = $post->post_author;
+    $title   = html_entity_decode(get_the_title($post_id));
     $token   = get_user_meta($user_id, 'wilcosky_bsky_token', true);
     $handle  = get_user_meta($user_id, 'wilcosky_bsky_handle', true);
-
+    
     if (empty($token) || empty($handle)) {
+        wilcosky_bsky_update_log($user_id, 'Missing token or handle.', $title);
+        schedule_retry($post_id, $user_id, $title);
         return;
     }
+    
+    $link = get_permalink($post_id);
 
-    $link  = get_permalink($post_id);
-    $title = html_entity_decode(get_the_title($post_id));
-
-    // Function to check Open Graph data
+    // Helper: Check Open Graph data and populate variables by reference.
     function check_og_data($link, $title, &$og_title, &$og_description, &$og_image) {
         $response = wp_remote_get($link);
         if (is_wp_error($response)) {
             return false;
         }
-
         $html = wp_remote_retrieve_body($response);
-        preg_match('/<meta property="og:title" content="([^\"]+)"/', $html, $og_title);
-        preg_match('/<meta property="og:description" content="([^\"]+)"/', $html, $og_description);
-        preg_match('/<meta property="og:image" content="([^\"]+)"/', $html, $og_image);
-
+        preg_match('/<meta property="og:title" content="([^"]+)"/', $html, $og_title);
+        preg_match('/<meta property="og:description" content="([^"]+)"/', $html, $og_description);
+        preg_match('/<meta property="og:image" content="([^"]+)"/', $html, $og_image);
+        
         $og_title = html_entity_decode($og_title[1] ?? $title);
         $og_description = html_entity_decode($og_description[1] ?? '');
         $og_image = $og_image[1] ?? '';
-
+        
         return (!empty($og_title) && !empty($og_description) && !empty($og_image) && !empty($link));
     }
-
-    // Initial check for Open Graph data
+    
+    // Initial Open Graph data check.
     if (!check_og_data($link, $title, $og_title, $og_description, $og_image)) {
-        wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
+        wilcosky_bsky_update_log($user_id, 'Open Graph data not ready, scheduling retry.', $title);
+        schedule_retry($post_id, $user_id, $title);
         return;
     }
-
-    // Upload image to Bluesky if an OG image is found
+    
+    // Attempt to upload the OG image.
     $embed = null;
     if (!empty($og_image)) {
         $image_data = wp_remote_get($og_image);
@@ -395,25 +454,29 @@ function wilcosky_bsky_auto_post($post_id) {
                     'Authorization' => 'Bearer ' . $token,
                 ],
             ]);
-
             if (!is_wp_error($upload_response)) {
                 $upload_body = json_decode(wp_remote_retrieve_body($upload_response), true);
                 if (!empty($upload_body['blob'])) {
                     $embed = [
-                        '$type'      => 'app.bsky.embed.external',
-                        'external'   => [
+                        '$type'    => 'app.bsky.embed.external',
+                        'external' => [
                             'uri'         => $link,
                             'title'       => $og_title,
                             'description' => $og_description,
                             'thumb'       => $upload_body['blob'],
                         ],
                     ];
+                    wilcosky_bsky_update_log($user_id, 'Image uploaded successfully.', $title);
+                } else {
+                    wilcosky_bsky_update_log($user_id, 'Image upload did not return a blob.', $title);
                 }
+            } else {
+                wilcosky_bsky_update_log($user_id, 'Error uploading image: ' . $upload_response->get_error_message(), $title);
             }
         }
     }
-
-    // Prepare data for posting with embed
+    
+    // Prepare the data for posting.
     $post_data = [
         'repo'       => $handle,
         'collection' => 'app.bsky.feed.post',
@@ -422,12 +485,11 @@ function wilcosky_bsky_auto_post($post_id) {
             'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z'),
         ],
     ];
-
     if ($embed) {
         $post_data['record']['embed'] = $embed;
     }
-
-    // Function to post data to Bluesky
+    
+    // Helper: Post data to Bluesky.
     function post_to_bluesky($post_data, $token) {
         return wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.repo.createRecord', [
             'body'    => wp_json_encode($post_data),
@@ -437,21 +499,23 @@ function wilcosky_bsky_auto_post($post_id) {
             ],
         ]);
     }
-
-    // Attempt to post to Bluesky
+    
+    wilcosky_bsky_update_log($user_id, 'Attempting to post to Bluesky.', $title);
     $post_response = post_to_bluesky($post_data, $token);
-
+    
+    // If the post attempt fails, try to refresh token or re-authenticate.
     if (is_wp_error($post_response) || wp_remote_retrieve_response_code($post_response) != 200) {
-        // Try refreshing the token and retry the request
+        wilcosky_bsky_update_log($user_id, 'Initial post attempt failed. Trying to refresh token.', $title);
         $token = wilcosky_bsky_refresh_token($user_id);
         if ($token) {
-            // Re-check the Open Graph data
+            wilcosky_bsky_update_log($user_id, 'Token refreshed successfully, retrying post.', $title);
+            // Re-check Open Graph data after token refresh.
             if (!check_og_data($link, $title, $og_title, $og_description, $og_image)) {
-                wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
+                wilcosky_bsky_update_log($user_id, 'OG data not ready after token refresh, scheduling retry.', $title);
+                schedule_retry($post_id, $user_id, $title);
                 return;
             }
-
-            // Upload image to Bluesky if an OG image is found
+            // Re-upload the image with the new token.
             $embed = null;
             if (!empty($og_image)) {
                 $image_data = wp_remote_get($og_image);
@@ -464,25 +528,24 @@ function wilcosky_bsky_auto_post($post_id) {
                             'Authorization' => 'Bearer ' . $token,
                         ],
                     ]);
-
                     if (!is_wp_error($upload_response)) {
                         $upload_body = json_decode(wp_remote_retrieve_body($upload_response), true);
                         if (!empty($upload_body['blob'])) {
                             $embed = [
-                                '$type'      => 'app.bsky.embed.external',
-                                'external'   => [
+                                '$type'    => 'app.bsky.embed.external',
+                                'external' => [
                                     'uri'         => $link,
                                     'title'       => $og_title,
                                     'description' => $og_description,
                                     'thumb'       => $upload_body['blob'],
                                 ],
                             ];
+                            wilcosky_bsky_update_log($user_id, 'Image re-uploaded successfully after token refresh.', $title);
                         }
                     }
                 }
             }
-
-            // Prepare data for posting with embed
+            // Prepare the post data again with the (re-uploaded) embed.
             $post_data = [
                 'repo'       => $handle,
                 'collection' => 'app.bsky.feed.post',
@@ -491,15 +554,13 @@ function wilcosky_bsky_auto_post($post_id) {
                     'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z'),
                 ],
             ];
-
             if ($embed) {
                 $post_data['record']['embed'] = $embed;
             }
-
-            // Attempt to post to Bluesky again with refreshed token
             $post_response = post_to_bluesky($post_data, $token);
         } else {
-            // If refreshing the token fails, re-authenticate using stored credentials
+            wilcosky_bsky_update_log($user_id, 'Token refresh failed, attempting re-authentication.', $title);
+            // Re-authenticate using stored credentials.
             $encrypted_password = get_user_meta($user_id, 'wilcosky_bsky_password', true);
             $password = wilcosky_bsky_decrypt($encrypted_password);
             if (!empty($handle) && !empty($password)) {
@@ -507,27 +568,43 @@ function wilcosky_bsky_auto_post($post_id) {
                     'identifier' => $handle,
                     'password'   => $password,
                 ];
-
                 $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.createSession', [
                     'body'    => wp_json_encode($payload),
                     'headers' => ['Content-Type' => 'application/json'],
                     'timeout' => 15,
                 ]);
-
                 if (!is_wp_error($response)) {
                     $body = json_decode(wp_remote_retrieve_body($response), true);
                     if (!empty($body['accessJwt']) && !empty($body['refreshJwt'])) {
                         update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
                         update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
                         $token = $body['accessJwt'];
+                        wilcosky_bsky_update_log($user_id, 'Re-authentication successful.', $title);
+                    } else {
+                        wilcosky_bsky_update_log($user_id, 'Re-authentication failed: invalid response.', $title);
                     }
+                } else {
+                    wilcosky_bsky_update_log($user_id, 'Re-authentication error: ' . $response->get_error_message(), $title);
                 }
+            }
+            // Re-attempt the post if we now have a token.
+            if (!empty($token)) {
+                wilcosky_bsky_update_log($user_id, 'Retrying post after re-authentication.', $title);
+                $post_response = post_to_bluesky($post_data, $token);
             }
         }
     }
-
+    
+    // Final outcome.
     if (!is_wp_error($post_response) && wp_remote_retrieve_response_code($post_response) == 200) {
         update_post_meta($post_id, '_wilcosky_bsky_posted', 1);
+        // Reset the retry count on success.
+        delete_post_meta($post_id, '_wilcosky_bsky_retry_count');
+        update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql'));
+        wilcosky_bsky_update_log($user_id, 'Post successfully auto-posted to Bluesky.', $title);
+    } else {
+        wilcosky_bsky_update_log($user_id, 'Failed to auto-post to Bluesky, scheduling final retry.', $title);
+        schedule_retry($post_id, $user_id, $title);
     }
 }
 add_action('wilcosky_bsky_auto_post_event', 'wilcosky_bsky_auto_post');
@@ -542,6 +619,9 @@ function wilcosky_bsky_uninstall() {
         delete_user_meta($user->ID, 'wilcosky_bsky_handle');
         delete_user_meta($user->ID, 'wilcosky_bsky_password');
         delete_user_meta($user->ID, 'wilcosky_bsky_last_communication');
+        
+        // Remove the frontend logs for each user
+        delete_user_meta($user->ID, 'wilcosky_bsky_frontend_logs');
     }
 
     // Remove post metadata
