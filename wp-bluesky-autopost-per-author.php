@@ -138,7 +138,7 @@ function wilcosky_bsky_login_shortcode() {
     </form>
 
     <div id="wilcosky-bsky-response"></div>
-    <label for="wilcosky-bsky-log"><?php esc_html_e('Plugin Log:', 'wilcosky-bsky'); ?></label>
+    <label for="wilcosky-bsky-log"><?php esc_html_e('Bluesky Posting Log:', 'wilcosky-bsky'); ?></label>
     <textarea id="wilcosky-bsky-log" readonly style="width: 100%; height: 200px;"><?php echo esc_textarea($log); ?></textarea>
 
     <script>
