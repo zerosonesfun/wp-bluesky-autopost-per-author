@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.9
+ * Version:     0.10
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
@@ -295,6 +295,7 @@ function wilcosky_bsky_schedule_auto_post($post_id) {
     wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
 }
 add_action('publish_post', 'wilcosky_bsky_schedule_auto_post');
+add_action('publish_resource', 'wilcosky_bsky_schedule_auto_post');
 
 /**
  * Create and update a frontend error log which shows up where the shortcode is placed.
@@ -587,9 +588,11 @@ function wilcosky_bsky_auto_post($post_id) {
                 }
             }
             // Re-attempt the post if we now have a token.
+            // Instead of re-attempting the post immediately, schedule a new posting event. This fixes a bug for some websites (depending on set up) where the image isn't ready.
             if (!empty($token)) {
-                wilcosky_bsky_update_log($user_id, 'Retrying post after re-authentication.', $title);
-                $post_response = post_to_bluesky($post_data, $token);
+                wilcosky_bsky_update_log($user_id, 'Re-authentication successful. Scheduling new posting event.', $title);
+                wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
+                return;
             }
         }
     }
