@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.12
+ * Version:     0.13
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
@@ -21,6 +21,7 @@ if (!defined('WILCOSKY_BSKY_ENCRYPTION_KEY')) {
     return;
 }
 
+// Define what the bsky API URL is
 define('WILCOSKY_BSKY_API', 'https://bsky.social/xrpc/');
 
 /**
@@ -337,10 +338,18 @@ function wilcosky_bsky_refresh_token($user_id) {
     ];
 
     $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.refreshSession', [
-        'body'    => wp_json_encode($payload),
-        'headers' => ['Content-Type' => 'application/json'],
-        'timeout' => 15,
-    ]);
+    // Remove the 'body' parameter entirely.
+    'headers' => [
+        'Content-Type'  => 'application/json',
+        'Authorization' => 'Bearer ' . $refresh_token,
+        'Accept'        => 'application/json',
+    ],
+    'timeout' => 15,
+]);
+
+    // Log the payload and response for debugging
+    error_log('Wilcosky BSky: Refresh token request payload - ' . wp_json_encode($payload));
+    error_log('Wilcosky BSky: Refresh token response - ' . wp_remote_retrieve_body($response));
 
     if (is_wp_error($response)) {
         wilcosky_bsky_update_log($user_id, 'Refresh token request error: ' . $response->get_error_message());
@@ -355,7 +364,7 @@ function wilcosky_bsky_refresh_token($user_id) {
 
     update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
     update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
-    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time
+    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time immediately
     wilcosky_bsky_update_log($user_id, 'Token refreshed successfully.');
     return $body['accessJwt'];
 }
@@ -417,54 +426,55 @@ function wilcosky_bsky_auto_post($post_id) {
 
     // Check if token is older than 15 minutes.
     if (strtotime($last_communication) < strtotime('-15 minutes')) {
-        wilcosky_bsky_update_log($user_id, 'Token expired, attempting to refresh.', $title);
-        $token = wilcosky_bsky_refresh_token($user_id);
-        if (!$token) {
-            wilcosky_bsky_update_log($user_id, 'Token refresh failed, attempting re-authentication.', $title);
+    wilcosky_bsky_update_log($user_id, 'Token expired, attempting to refresh.', $title);
+    $token = wilcosky_bsky_refresh_token($user_id);
+    if (!$token) {
+        wilcosky_bsky_update_log($user_id, 'Token refresh failed, attempting re-authentication.', $title);
 
-            // Re-authenticate using stored credentials.
-            $encrypted_password = get_user_meta($user_id, 'wilcosky_bsky_password', true);
-            $password = wilcosky_bsky_decrypt($encrypted_password);
-            if (!empty($handle) && !empty($password)) {
-                $payload = [
-                    'identifier' => $handle,
-                    'password'   => $password,
-                ];
-                $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.createSession', [
-                    'body'    => wp_json_encode($payload),
-                    'headers' => ['Content-Type' => 'application/json'],
-                    'timeout' => 15,
-                ]);
-                if (!is_wp_error($response)) {
-                    $body = json_decode(wp_remote_retrieve_body($response), true);
-                    if (!empty($body['accessJwt']) && !empty($body['refreshJwt'])) {
-                        update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
-                        update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
-                        $token = $body['accessJwt'];
-                        wilcosky_bsky_update_log($user_id, 'Re-authentication successful. Scheduling new posting event.', $title);
-                        wilcosky_bsky_schedule_auto_post($post_id);
-                        return;
-                    } else {
-                        wilcosky_bsky_update_log($user_id, 'Re-authentication failed: invalid response.', $title);
-                        schedule_retry($post_id, $user_id, $title);
-                        return;
-                    }
+        // Re-authenticate using stored credentials.
+        $encrypted_password = get_user_meta($user_id, 'wilcosky_bsky_password', true);
+        $password = wilcosky_bsky_decrypt($encrypted_password);
+        if (!empty($handle) && !empty($password)) {
+            $payload = [
+                'identifier' => $handle,
+                'password'   => $password,
+            ];
+            $response = wp_remote_post(WILCOSKY_BSKY_API . 'com.atproto.server.createSession', [
+                'body'    => wp_json_encode($payload),
+                'headers' => ['Content-Type' => 'application/json'],
+                'timeout' => 15,
+            ]);
+            if (!is_wp_error($response)) {
+                $body = json_decode(wp_remote_retrieve_body($response), true);
+                if (!empty($body['accessJwt']) && !empty($body['refreshJwt'])) {
+                    update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
+                    update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
+                    update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time immediately
+                    $token = $body['accessJwt'];
+                    wilcosky_bsky_update_log($user_id, 'Re-authentication successful. Scheduling new posting event.', $title);
+                    wilcosky_bsky_schedule_auto_post($post_id);
+                    return;
                 } else {
-                    wilcosky_bsky_update_log($user_id, 'Re-authentication error: ' . $response->get_error_message(), $title);
+                    wilcosky_bsky_update_log($user_id, 'Re-authentication failed: invalid response.', $title);
                     schedule_retry($post_id, $user_id, $title);
                     return;
                 }
             } else {
-                wilcosky_bsky_update_log($user_id, 'Re-authentication credentials missing.', $title);
+                wilcosky_bsky_update_log($user_id, 'Re-authentication error: ' . $response->get_error_message(), $title);
                 schedule_retry($post_id, $user_id, $title);
                 return;
             }
         } else {
-            wilcosky_bsky_update_log($user_id, 'Token refreshed successfully. Scheduling new posting event.', $title);
-            wilcosky_bsky_schedule_auto_post($post_id);
+            wilcosky_bsky_update_log($user_id, 'Re-authentication credentials missing.', $title);
+            schedule_retry($post_id, $user_id, $title);
             return;
         }
+    } else {
+        wilcosky_bsky_update_log($user_id, 'Token refreshed successfully. Scheduling new posting event.', $title);
+        wilcosky_bsky_schedule_auto_post($post_id);
+        return;
     }
+}
 
     // Proceed with image upload and posting to Bluesky.
     $link = get_permalink($post_id);
