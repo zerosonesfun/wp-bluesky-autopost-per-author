@@ -1,6 +1,6 @@
 # Bluesky Auto-Poster per Author
 
-Let each author at your WordPress website connect to their Bluesky account. When they publish a post, it is sent to their Bluesky account. (There is a 1 to 2 minute delay.)
+Let each author at your WordPress website connect to their Bluesky account. When they publish a post, it is sent to their Bluesky account. (There is a 1 to 2+ minute delay depending on if a token is expired and/or something like the image upload fails at first.)
 
 ## Plugin Overview
 
@@ -26,6 +26,7 @@ The `wilcosky_bsky_auto_post` function is triggered to perform the following ste
 4. **Upload Image (if available)**: If an Open Graph image is found, upload it to Bluesky.
 5. **Prepare Post Data**: Prepare the data for posting, including text and embed (if image is uploaded).
 6. **Post to Bluesky**: Attempt to post the data to Bluesky.
+7. **Token Handling**: If the token is expired, the refresh token is used. If the refresh token is also expired, re-authentication is performed.
 
 ### 4. Retry Mechanism
 
