@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.10
+ * Version:     0.11
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
@@ -278,7 +278,7 @@ function wilcosky_bsky_disconnect() {
 add_action('wp_ajax_wilcosky_bsky_disconnect', 'wilcosky_bsky_disconnect');
 
 /**
- * Schedule auto-post to Bluesky when a post, page, or custom post type is published.
+ * Schedule auto-post to Bluesky when a post is published.
  *
  * @param int $post_id
  */
@@ -295,7 +295,6 @@ function wilcosky_bsky_schedule_auto_post($post_id) {
     wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
 }
 add_action('publish_post', 'wilcosky_bsky_schedule_auto_post');
-add_action('publish_resource', 'wilcosky_bsky_schedule_auto_post');
 
 /**
  * Create and update a frontend error log which shows up where the shortcode is placed.
