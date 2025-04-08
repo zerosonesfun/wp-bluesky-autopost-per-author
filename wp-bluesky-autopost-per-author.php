@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     0.13
+ * Version:     1.0
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
