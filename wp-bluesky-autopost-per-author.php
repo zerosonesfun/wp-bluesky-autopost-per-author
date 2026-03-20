@@ -3,7 +3,7 @@
  * Plugin Name: Wilcosky Bluesky Auto-Poster
  * Plugin URI:  https://wilcosky.com
  * Description: Allows each WordPress author to connect their Bluesky account using their handle and password and auto-post published posts to Bluesky.
- * Version:     1.1
+ * Version:     1.2
  * Author:      Billy Wilcosky
  * Author URI:  https://wilcosky.com
  * License:     GPL3
@@ -44,9 +44,21 @@ function wilcosky_bsky_encrypt($data) {
  * @return string The decrypted data.
  */
 function wilcosky_bsky_decrypt($data) {
+    if (empty($data) || !is_string($data)) {
+        return '';
+    }
     $key = WILCOSKY_BSKY_ENCRYPTION_KEY;
-    list($encrypted_data, $iv) = explode('::', base64_decode($data), 2);
-    return openssl_decrypt($encrypted_data, 'aes-256-cbc', $key, 0, $iv);
+    $decoded = base64_decode($data, true);
+    if ($decoded === false) {
+        return '';
+    }
+    $parts = explode('::', $decoded, 2);
+    if (count($parts) !== 2) {
+        return '';
+    }
+    list($encrypted_data, $iv) = $parts;
+    $result = openssl_decrypt($encrypted_data, 'aes-256-cbc', $key, 0, $iv);
+    return is_string($result) ? $result : '';
 }
 
 /**
@@ -114,6 +126,68 @@ function wilcosky_bsky_login_shortcode() {
         .wilcosky-bsky-form button:hover {
             background-color: #005177;
         }
+
+        .wilcosky-bsky-log-wrap {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .wilcosky-bsky-log-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .wilcosky-bsky-log-wrap .wilcosky-bsky-log-toggle {
+            flex-shrink: 0;
+            width: auto;
+            min-width: 32px;
+            height: 32px;
+            padding: 4px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f0f0f0;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-size: 13px;
+            line-height: 1;
+            color: #333;
+            font-family: inherit;
+        }
+        .wilcosky-bsky-log-wrap .wilcosky-bsky-log-toggle:hover {
+            background: #e0e0e0;
+            border-color: #999;
+        }
+        .wilcosky-bsky-log-wrap .wilcosky-bsky-log-toggle .wilcosky-bsky-log-arrow {
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+        .wilcosky-bsky-log-wrap .wilcosky-bsky-log-toggle[aria-expanded="true"] .wilcosky-bsky-log-arrow {
+            transform: rotate(180deg);
+        }
+        .wilcosky-bsky-log-wrap #wilcosky-bsky-log {
+            width: 100%;
+            box-sizing: border-box;
+            resize: none;
+            font-family: inherit;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fafafa;
+            transition: height 0.2s ease;
+        }
+        .wilcosky-bsky-log-wrap #wilcosky-bsky-log.wilcosky-bsky-log-collapsed {
+            height: 2.5em !important;
+            min-height: 2.5em !important;
+            max-height: 2.5em !important;
+            overflow: hidden !important;
+        }
+        .wilcosky-bsky-log-wrap #wilcosky-bsky-log.wilcosky-bsky-log-expanded {
+            height: 200px;
+            min-height: 120px;
+        }
     </style>
 
     <form id="wilcosky-bsky-login-form" class="wilcosky-bsky-form" style="<?php echo !empty($bsky_handle) ? 'display:none;' : ''; ?>">
@@ -139,15 +213,44 @@ function wilcosky_bsky_login_shortcode() {
     </form>
 
     <div id="wilcosky-bsky-response"></div>
-    <label for="wilcosky-bsky-log"><?php esc_html_e('Bluesky Posting Log:', 'wilcosky-bsky'); ?></label>
-    <textarea id="wilcosky-bsky-log" readonly style="width: 100%; height: 200px;"><?php echo esc_textarea($log); ?></textarea>
+    <div class="wilcosky-bsky-log-wrap">
+        <div class="wilcosky-bsky-log-header">
+            <button type="button" class="wilcosky-bsky-log-toggle" id="wilcosky-bsky-log-toggle" aria-expanded="false" aria-controls="wilcosky-bsky-log" aria-label="<?php esc_attr_e('Expand log', 'wilcosky-bsky'); ?>">
+                <span class="wilcosky-bsky-log-toggle-text"><?php esc_html_e('Bluesky Posting Log', 'wilcosky-bsky'); ?></span>
+                <span class="wilcosky-bsky-log-arrow" aria-hidden="true">▼</span>
+            </button>
+        </div>
+        <textarea id="wilcosky-bsky-log" readonly class="wilcosky-bsky-log-collapsed" rows="1" aria-label="<?php esc_attr_e('Bluesky posting activity log', 'wilcosky-bsky'); ?>"><?php echo esc_textarea($log); ?></textarea>
+    </div>
 
     <script>
     (function(){
         const loginForm = document.getElementById('wilcosky-bsky-login-form');
         const disconnectForm = document.getElementById('wilcosky-bsky-disconnect-form');
         const responseDiv = document.getElementById('wilcosky-bsky-response');
-        
+        const logArea = document.getElementById('wilcosky-bsky-log');
+        const logToggle = document.getElementById('wilcosky-bsky-log-toggle');
+
+        function scrollLogToBottom() {
+            if (logArea) logArea.scrollTop = logArea.scrollHeight;
+        }
+        function setLogExpanded(expanded) {
+            if (!logArea || !logToggle) return;
+            logArea.classList.remove('wilcosky-bsky-log-collapsed', 'wilcosky-bsky-log-expanded');
+            logArea.classList.add(expanded ? 'wilcosky-bsky-log-expanded' : 'wilcosky-bsky-log-collapsed');
+            logToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            logToggle.setAttribute('aria-label', expanded ? '<?php echo esc_js(__('Collapse log', 'wilcosky-bsky')); ?>' : '<?php echo esc_js(__('Expand log', 'wilcosky-bsky')); ?>');
+            var toggleText = logToggle.querySelector('.wilcosky-bsky-log-toggle-text');
+            if (toggleText) toggleText.textContent = expanded ? '<?php echo esc_js(__('Collapse log', 'wilcosky-bsky')); ?>' : '<?php echo esc_js(__('Bluesky Posting Log', 'wilcosky-bsky')); ?>';
+            if (expanded) scrollLogToBottom();
+        }
+        if (logToggle && logArea) {
+            logToggle.addEventListener('click', function() {
+                setLogExpanded(logArea.classList.contains('wilcosky-bsky-log-collapsed'));
+            });
+            scrollLogToBottom();
+        }
+
         if (loginForm) {
             loginForm.addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -244,10 +347,13 @@ function wilcosky_bsky_login() {
         wp_send_json(['message' => esc_html__('Bluesky authentication failed. Please check your handle and password.', 'wilcosky-bsky')], 401);
     }
 
-    // Store the session tokens and handle securely.
+    // Store the session tokens, handle, and DID securely. createRecord requires repo=DID on bsky.social.
     update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
     update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
     update_user_meta($user_id, 'wilcosky_bsky_handle', $handle);
+    if (!empty($body['did'])) {
+        update_user_meta($user_id, 'wilcosky_bsky_did', sanitize_text_field($body['did']));
+    }
     update_user_meta($user_id, 'wilcosky_bsky_password', wilcosky_bsky_encrypt($password)); // Store encrypted password
     update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Store current time
 
@@ -268,9 +374,11 @@ function wilcosky_bsky_disconnect() {
 
     $user_id = get_current_user_id();
 
-    // Remove the session token and handle.
+    // Remove the session token, refresh token, handle, DID, and password.
     delete_user_meta($user_id, 'wilcosky_bsky_token');
+    delete_user_meta($user_id, 'wilcosky_bsky_refresh_token');
     delete_user_meta($user_id, 'wilcosky_bsky_handle');
+    delete_user_meta($user_id, 'wilcosky_bsky_did');
     delete_user_meta($user_id, 'wilcosky_bsky_password'); // Remove stored encrypted password
     delete_user_meta($user_id, 'wilcosky_bsky_last_communication'); // Remove last communication time
 
@@ -279,7 +387,31 @@ function wilcosky_bsky_disconnect() {
 add_action('wp_ajax_wilcosky_bsky_disconnect', 'wilcosky_bsky_disconnect');
 
 /**
- * Schedule auto-post to Bluesky when a post is published.
+ * Allowed post types for Bluesky auto-post. Only these are sent when first published.
+ */
+function wilcosky_bsky_allowed_post_types() {
+    return array('post', 'resource');
+}
+
+/**
+ * Schedule auto-post to Bluesky only when a post or resource is first published (not on edits/updates).
+ *
+ * @param string  $new_status New post status.
+ * @param string  $old_status Old post status.
+ * @param WP_Post $post       Post object.
+ */
+function wilcosky_bsky_on_publish_any_type($new_status, $old_status, $post) {
+    if ($new_status !== 'publish' || $old_status === 'publish') {
+        return;
+    }
+    if (!in_array($post->post_type, wilcosky_bsky_allowed_post_types(), true)) {
+        return;
+    }
+    wilcosky_bsky_schedule_auto_post($post->ID);
+}
+
+/**
+ * Schedule the auto-post event (shared by all post types).
  *
  * @param int $post_id
  */
@@ -295,7 +427,7 @@ function wilcosky_bsky_schedule_auto_post($post_id) {
     // Schedule the auto-post with a delay of 1 minute
     wp_schedule_single_event(time() + 60, 'wilcosky_bsky_auto_post_event', [$post_id]);
 }
-add_action('publish_post', 'wilcosky_bsky_schedule_auto_post');
+add_action('transition_post_status', 'wilcosky_bsky_on_publish_any_type', 10, 3);
 
 /**
  * Create and update a frontend error log which shows up where the shortcode is placed.
@@ -364,9 +496,31 @@ function wilcosky_bsky_refresh_token($user_id) {
 
     update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
     update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
+    if (!empty($body['did'])) {
+        update_user_meta($user_id, 'wilcosky_bsky_did', sanitize_text_field($body['did']));
+    }
     update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time immediately
     wilcosky_bsky_update_log($user_id, 'Token refreshed successfully.');
     return $body['accessJwt'];
+}
+
+/**
+ * Resolve a Bluesky handle to a DID (for createRecord repo). Used when user has no stored DID.
+ *
+ * @param string $handle The handle (without @).
+ * @return string|null The DID or null on failure.
+ */
+function wilcosky_bsky_resolve_handle_to_did($handle) {
+    if (empty($handle)) {
+        return null;
+    }
+    $url = add_query_arg('handle', $handle, WILCOSKY_BSKY_API . 'com.atproto.identity.resolveHandle');
+    $response = wp_remote_get($url, ['timeout' => 10]);
+    if (is_wp_error($response)) {
+        return null;
+    }
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    return isset($body['did']) ? sanitize_text_field($body['did']) : null;
 }
 
 /**
@@ -462,10 +616,20 @@ function wilcosky_bsky_auto_post($post_id) {
     $title   = html_entity_decode(get_the_title($post_id));
     $token   = get_user_meta($user_id, 'wilcosky_bsky_token', true);
     $handle  = get_user_meta($user_id, 'wilcosky_bsky_handle', true);
+    $did     = get_user_meta($user_id, 'wilcosky_bsky_did', true);
     $last_communication = get_user_meta($user_id, 'wilcosky_bsky_last_communication', true);
 
-    if (empty($token) || empty($handle) || empty($title)) {
-        wilcosky_bsky_update_log($user_id, 'Missing token, handle, or title.', $title);
+    // createRecord requires repo = DID on bsky.social; handle may be rejected (e.g. from Feb 2026).
+    if (empty($did) && !empty($handle)) {
+        $did = wilcosky_bsky_resolve_handle_to_did($handle);
+        if (!empty($did)) {
+            update_user_meta($user_id, 'wilcosky_bsky_did', $did);
+        }
+    }
+    $repo = !empty($did) ? $did : $handle;
+
+    if (empty($token) || empty($repo) || empty($title)) {
+        wilcosky_bsky_update_log($user_id, 'Missing token, repo (DID/handle), or title.', $title);
         schedule_retry($post_id, $user_id, $title);
         return;
     }
@@ -495,6 +659,9 @@ function wilcosky_bsky_auto_post($post_id) {
                     if (!empty($body['accessJwt']) && !empty($body['refreshJwt'])) {
                         update_user_meta($user_id, 'wilcosky_bsky_token', sanitize_text_field($body['accessJwt']));
                         update_user_meta($user_id, 'wilcosky_bsky_refresh_token', sanitize_text_field($body['refreshJwt']));
+                        if (!empty($body['did'])) {
+                            update_user_meta($user_id, 'wilcosky_bsky_did', sanitize_text_field($body['did']));
+                        }
                         update_user_meta($user_id, 'wilcosky_bsky_last_communication', current_time('mysql')); // Update communication time immediately
                         $token = $body['accessJwt'];
                         wilcosky_bsky_update_log($user_id, 'Re-authentication successful. Scheduling new posting event.', $title);
@@ -586,9 +753,10 @@ function wilcosky_bsky_auto_post($post_id) {
     }
 
     $post_data = [
-        'repo'       => $handle,
+        'repo'       => $repo,
         'collection' => 'app.bsky.feed.post',
         'record'     => [
+            '$type'     => 'app.bsky.feed.post',
             'text'      => $title,
             'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z'),
         ],
@@ -628,19 +796,30 @@ function wilcosky_bsky_uninstall() {
         delete_user_meta($user->ID, 'wilcosky_bsky_token');
         delete_user_meta($user->ID, 'wilcosky_bsky_refresh_token');
         delete_user_meta($user->ID, 'wilcosky_bsky_handle');
+        delete_user_meta($user->ID, 'wilcosky_bsky_did');
         delete_user_meta($user->ID, 'wilcosky_bsky_password');
         delete_user_meta($user->ID, 'wilcosky_bsky_last_communication');
-        
-        // Remove the frontend logs for each user
-        delete_user_meta($user->ID, 'wilcosky_bsky_frontend_logs');
+        delete_user_meta($user->ID, 'wilcosky_bsky_log');
     }
 
     // Remove post metadata
     $posts = get_posts(array('numberposts' => -1, 'post_type' => 'any', 'post_status' => 'any'));
     foreach ($posts as $post) {
         delete_post_meta($post->ID, '_wilcosky_bsky_posted');
+        delete_post_meta($post->ID, '_wilcosky_bsky_retry_count');
     }
 }
+
+/**
+ * On plugin activation, add a one-time message to every user's front-end log.
+ */
+function wilcosky_bsky_on_activation() {
+    $users = get_users(['fields' => 'ID']);
+    foreach ($users as $user_id) {
+        wilcosky_bsky_update_log($user_id, 'Update made to bsky connection feature! 🎉', '');
+    }
+}
+register_activation_hook(__FILE__, 'wilcosky_bsky_on_activation');
 
 // Hook the uninstall function
 register_uninstall_hook(__FILE__, 'wilcosky_bsky_uninstall');
